@@ -9,7 +9,7 @@
     const rtcPeerConnections = {};
 
     const hubConnection = new signalR.HubConnectionBuilder()
-        .withUrl("https://localhost:5001/signaling")
+        .withUrl("https://webrtcdemoserver.azurewebsites.net/signaling")
         .configureLogging(signalR.LogLevel.Debug)
         .build();
 
@@ -93,6 +93,9 @@
         const roomid = document.getElementById("roomid").value;
 
         if (!roomid) return;
+
+        const setup = document.getElementById("setup");
+        setup.parentNode.removeChild(setup);
 
         await new Promise((resolve, reject) => {
             navigator.getUserMedia({

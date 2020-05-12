@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <link rel="stylesheet" href="style.css" /> 
-    </head>
-    <body>
+
+<head>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div id="setup">
         <input type="text" id="roomid" />
         <button id="start">Start</button>
+    </div>
 
-        <video id="own-video" autoplay muted></video>
-        <div id="other-videos"></div>
+    <video id="own-video" autoplay muted></video>
+    <div id="other-videos"></div>
 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.3/signalr.min.js"></script>
-        <script src="script.js"></script>
-    </body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.3/signalr.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
 </html>

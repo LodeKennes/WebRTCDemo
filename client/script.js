@@ -1,73 +1,118 @@
 (async function () {
     let stream;
-
-    await new Promise((resolve, reject) => {
-        navigator.getUserMedia({
-            video: true,
-            audio: true
-        }, (mediaStream) => {
-            // Success
-            stream = mediaStream;
-            document.getElementById("own-video").srcObject = stream;
-            resolve();
-        },
-            (e) => {
-                // Error
-            })
-    });
-
-    let remoteStream;
     const peerConnectionConfig = {
         'iceServers': [
             { 'urls': 'stun:stun.services.mozilla.com' },
             { 'urls': 'stun:stun.l.google.com:19302' },
         ]
     };
+    const rtcPeerConnections = {};
 
-    const rtcPeerConnection = new RTCPeerConnection(peerConnectionConfig);
-
-    const connection = new signalR.HubConnectionBuilder()
+    const hubConnection = new signalR.HubConnectionBuilder()
         .withUrl("https://localhost:5001/signaling")
         .configureLogging(signalR.LogLevel.Debug)
         .build();
 
-    connection.on("UserConnected", async function () {
-        console.log("user connected");
-        rtcPeerConnection.onicecandidate = function (event) {
-            if (event.candidate === null) return;
-            connection.send("Ice", JSON.stringify(event.candidate));
-        };
+    hubConnection.on("ClientJoined", async function(id, count, clients) {
+        for (const socketId of clients) {
+            if (rtcPeerConnections[socketId] !== undefined || socketId === hubConnection.connectionId) continue;
 
-        rtcPeerConnection.onaddstream = function (event) {
-            console.log('got stream');
-            remoteStream = event.stream;
-            document.getElementById("remote-video").srcObject = remoteStream;
-        };
+            const connection = new RTCPeerConnection(peerConnectionConfig);
+            rtcPeerConnections[socketId] = {
+                connection
+            };
 
-        rtcPeerConnection.addStream(stream);
+            connection.onicecandidate = async function (event) {
+                if (event.candidate === null) return;
+                await hubConnection.send("Signal", socketId, JSON.stringify({ 'ice': event.candidate }));
+            };
 
-        const offer = await rtcPeerConnection.createOffer();
-        await rtcPeerConnection.setLocalDescription(offer);
-        await connection.send("Sdp", JSON.stringify(rtcPeerConnection.localDescription));
+            connection.onaddstream = async function (event) {
+                for (const key in rtcPeerConnections) {
+                    if (key === socketId) {
+                        rtcPeerConnections[key].stream = event.stream;
+                        break;
+                    } 
+                }
+
+                const container = document.getElementById("other-videos");
+                const newVideo  = document.createElement("video");
+                newVideo.setAttribute('muted', false);
+                newVideo.setAttribute('autoplay', true);
+                newVideo.setAttribute('id', 'video' + socketId);
+                newVideo.srcObject = event.stream;
+                container.appendChild(newVideo);
+            };
+
+            connection.addStream(stream);
+        }
+
+        if (count >= 2) {
+            const connection = rtcPeerConnections[id]?.connection;
+
+            if (connection !== undefined) {
+                const offer = await connection.createOffer();
+                await connection.setLocalDescription(offer);
+                await hubConnection.send("Signal", id, JSON.stringify({'sdp': connection.localDescription}));
+            }
+        }
     });
 
-    connection.on("Sdp", async function (sdp) {
-        const deserialized = JSON.parse(sdp);
-        console.log("SDP", sdp);
+    hubConnection.on("Signal", async function(from, message) {
+        const signal = JSON.parse(message);
 
-        const remoteDescription = rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(deserialized));
+        if (from === hubConnection.connectionId) return;
 
-        if (deserialized.type !== 'offer') return;
-        const answer = await rtcPeerConnection.createAnswer();
-        await rtcPeerConnection.setLocalDescription(answer);
-        await connection.send("Sdp", JSON.stringify(rtcPeerConnection.localDescription));
+        const connection = rtcPeerConnections[from].connection;
+
+        if (signal.sdp) {
+            await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+            if (signal.sdp.type === 'offer') {
+                const answer = await connection.createAnswer();
+                await connection.setLocalDescription(answer);
+                await hubConnection.send("Signal", from, JSON.stringify({'sdp': connection.localDescription}));
+            }
+        }
+
+        if (signal.ice) {
+            await connection.addIceCandidate(new RTCIceCandidate(signal.ice));
+        }
     });
 
-    connection.on("Ice", async function (ice) {
-        console.log("ICE", ice);
-        const deserialized = JSON.parse(ice);
-        await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(deserialized));
+    hubConnection.on("ClientLeft", async function(id) {
+        delete rtcPeerConnections[id];
+        const item = document.getElementById("video" + id);
+
+        if (item === undefined) return;
+
+        item.parentNode.removeChild(item);
     });
 
-    await connection.start();
+    document.getElementById("start").onclick = async function() {
+        const roomid = document.getElementById("roomid").value;
+
+        if (!roomid) return;
+
+        await new Promise((resolve, reject) => {
+            navigator.getUserMedia({
+                video: true,
+                audio: true
+            }, (mediaStream) => {
+                // Success
+                stream = mediaStream;
+                document.getElementById("own-video").srcObject = stream;
+                resolve();
+            },
+                (e) => {
+                    // Error
+                    console.log(e);
+                    reject(e);
+                })
+        });
+        
+        await hubConnection.start();
+
+        await hubConnection.send("JoinGroup", roomid);
+    };
 })();

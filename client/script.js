@@ -48,7 +48,7 @@
         }
 
         if (count >= 2) {
-            const connection = rtcPeerConnections[id]?.connection;
+            const connection = rtcPeerConnections[id].connection;
 
             if (connection !== undefined) {
                 const offer = await connection.createOffer();

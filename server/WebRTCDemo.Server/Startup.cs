@@ -36,7 +36,7 @@ namespace WebRTCDemo.Server
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             app.UseCors(
-                options => options.AllowCredentials().WithOrigins("https://127.0.0.1:8080", "https://localhost:8080").AllowAnyMethod().AllowAnyHeader()
+                options => options.AllowCredentials().WithOrigins("https://127.0.0.1:8080", "https://localhost:8080", "https://demowebrtcsite.z6.web.core.windows.net").AllowAnyMethod().AllowAnyHeader()
             );
             
             if (env.IsDevelopment())

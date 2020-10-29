@@ -97,6 +97,10 @@
         const setup = document.getElementById("setup");
         setup.parentNode.removeChild(setup);
 
+        navigator.getUserMedia = navigator.getUserMedia ||
+                         navigator.webkitGetUserMedia ||
+                         navigator.mozGetUserMedia; 
+
         await new Promise((resolve, reject) => {
             navigator.getUserMedia({
                 video: true,
